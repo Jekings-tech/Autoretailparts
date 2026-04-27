@@ -30,7 +30,7 @@ app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
     
     // Using your specific credentials
-    if (username === 'Autoretail' && password === 'Autoretail237') {
+    if (username === 'Tanyi jovial' && password === 'Homeboy19940') {
         res.json({ 
             success: true, 
             token: 'SECRET_RETAIL_KEY_2024' // This is the "Key" the browser will hold
