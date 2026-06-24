@@ -26,6 +26,11 @@ const productSchema = new mongoose.Schema({
         required: [true, 'Description is required'],
         trim: true
     },
+    brand: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Brand',
+    required: [true, 'Brand is required']
+},
     images: {
         type: [String],
         default: [] // Default to empty array if no images are uploaded yet

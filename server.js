@@ -25,6 +25,7 @@ mongoose.connect(mongoURI)
 // Routes
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const brandRoutes = require('./routes/brandRoutes');
 
 app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
@@ -42,7 +43,7 @@ app.post('/api/auth/login', (req, res) => {
 
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
-
+app.use('/api/brands', brandRoutes);
 // Start Server
 const PORT = process.env.PORT || 5000; // 👈 Better for Render/Heroku
 app.listen(PORT, () => {

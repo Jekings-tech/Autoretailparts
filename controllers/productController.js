@@ -141,3 +141,59 @@ exports.searchProducts = async (req, res) => {
         res.status(500).json({ success: false, message: 'Search failed', error: error.message });
     }
 };
+// @desc    Get products by brand and category
+// @route   GET /api/products/brand/:brandId/category/:categoryId
+// @access  Public
+exports.getProductsByBrandAndCategory = async (req, res) => {
+    try {
+        const { brandId, categoryId } = req.params;
+        
+        const query = {
+            brand: brandId,
+            category: categoryId
+        };
+        
+        const products = await Product.find(query)
+            .populate('category', 'name')
+            .populate('brand', 'name')
+            .sort({ createdAt: -1 });
+        
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching products',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get products by brand only
+// @route   GET /api/products/brand/:brandId
+// @access  Public
+exports.getProductsByBrand = async (req, res) => {
+    try {
+        const { brandId } = req.params;
+        
+        const products = await Product.find({ brand: brandId })
+            .populate('category', 'name')
+            .populate('brand', 'name')
+            .sort({ createdAt: -1 });
+        
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            data: products
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching products',
+            error: error.message
+        });
+    }
+};

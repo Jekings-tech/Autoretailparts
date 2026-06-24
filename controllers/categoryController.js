@@ -221,3 +221,24 @@ exports.deleteCategory = async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 };
+// @desc    Get categories for a specific brand
+// @route   GET /api/categories/brand/:brandId
+// @access  Public
+exports.getCategoriesByBrand = async (req, res) => {
+    try {
+        // All brands share the same 10 categories
+        const categories = await Category.find().sort({ name: 1 });
+        
+        res.status(200).json({
+            success: true,
+            count: categories.length,
+            data: categories
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching categories',
+            error: error.message
+        });
+    }
+};
