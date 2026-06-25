@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const Brand = require('../models/Brand'); // ADDED: Import Brand model
 
 // NOTE: We removed fs and path because Cloudinary handles storage now.
 
@@ -8,6 +9,7 @@ exports.getAllProducts = async (req, res) => {
     try {
         const products = await Product.find()
             .populate('category', 'name')
+            .populate('brand', 'name') // ADDED: Populate brand
             .sort({ createdAt: -1 });
         
         res.status(200).json({
@@ -26,6 +28,22 @@ exports.createProduct = async (req, res) => {
         // req.files is already populated by the multer-cloudinary middleware in your routes
         const { name, category, condition, price, description } = req.body;
         
+        // FIX: Handle brand - get from body or use default
+        let brand = req.body.brand;
+        
+        // If no brand is provided, get the first available brand
+        if (!brand) {
+            const firstBrand = await Brand.findOne();
+            if (firstBrand) {
+                brand = firstBrand._id;
+            } else {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Please create a brand first before adding products' 
+                });
+            }
+        }
+        
         if (!name || !category || !condition || !price || !description) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -39,18 +57,30 @@ exports.createProduct = async (req, res) => {
 
         const product = await Product.create({
             name,
+            brand, // ADDED: Include brand
             category,
             condition,
             price: parseFloat(price),
             description,
-            images // These are now permanent URLs (https://...)
+            images
         });
 
-        const populatedProduct = await Product.findById(product._id).populate('category', 'name');
+        const populatedProduct = await Product.findById(product._id)
+            .populate('category', 'name')
+            .populate('brand', 'name'); // ADDED: Populate brand
         
-        res.status(201).json({ success: true, message: 'Product created successfully', data: populatedProduct });
+        res.status(201).json({ 
+            success: true, 
+            message: 'Product created successfully', 
+            data: populatedProduct 
+        });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error creating product', error: error.message });
+        console.error('Create error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error creating product', 
+            error: error.message 
+        });
     }
 };
 
@@ -72,6 +102,12 @@ exports.updateProduct = async (req, res) => {
         product.price = price ? parseFloat(price) : product.price;
         product.description = description || product.description;
 
+        // FIX: Handle brand update - only update if provided
+        if (req.body.brand) {
+            product.brand = req.body.brand;
+        }
+        // If no brand is provided, keep the existing one
+
         // If new images were uploaded to Cloudinary
         if (req.files && req.files.length > 0) {
             // We replace the old image array with the new Cloudinary URLs
@@ -80,11 +116,22 @@ exports.updateProduct = async (req, res) => {
         
         await product.save();
         
-        const updatedProduct = await Product.findById(product._id).populate('category', 'name');
+        const updatedProduct = await Product.findById(product._id)
+            .populate('category', 'name')
+            .populate('brand', 'name'); // ADDED: Populate brand
         
-        res.status(200).json({ success: true, message: 'Product updated successfully', data: updatedProduct });
+        res.status(200).json({ 
+            success: true, 
+            message: 'Product updated successfully', 
+            data: updatedProduct 
+        });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error updating product', error: error.message });
+        console.error('Update error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error updating product', 
+            error: error.message 
+        });
     }
 };
 
@@ -100,23 +147,38 @@ exports.deleteProduct = async (req, res) => {
         // using their SDK, but simply deleting the product from Mongo is enough for now.
         await product.deleteOne();
         
-        res.status(200).json({ success: true, message: 'Product deleted successfully' });
+        res.status(200).json({ 
+            success: true, 
+            message: 'Product deleted successfully' 
+        });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error deleting product', error: error.message });
+        console.error('Delete error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error deleting product', 
+            error: error.message 
+        });
     }
 };
 
-// Keep your getProduct and searchProducts functions as they were...
-// @desc    Get single product by ID (This was missing!)
+// @desc    Get single product by ID
 exports.getProductById = async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id).populate('category', 'name');
+        const product = await Product.findById(req.params.id)
+            .populate('category', 'name')
+            .populate('brand', 'name'); // ADDED: Populate brand
+        
         if (!product) {
             return res.status(404).json({ success: false, message: 'Product not found' });
         }
         res.status(200).json({ success: true, data: product });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Error fetching product', error: error.message });
+        console.error('Get by ID error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error fetching product', 
+            error: error.message 
+        });
     }
 };
 
@@ -135,12 +197,25 @@ exports.searchProducts = async (req, res) => {
             };
         }
 
-        const products = await Product.find(query).populate('category', 'name');
-        res.status(200).json({ success: true, count: products.length, data: products });
+        const products = await Product.find(query)
+            .populate('category', 'name')
+            .populate('brand', 'name'); // ADDED: Populate brand
+        
+        res.status(200).json({ 
+            success: true, 
+            count: products.length, 
+            data: products 
+        });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Search failed', error: error.message });
+        console.error('Search error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Search failed', 
+            error: error.message 
+        });
     }
 };
+
 // @desc    Get products by brand and category
 // @route   GET /api/products/brand/:brandId/category/:categoryId
 // @access  Public
@@ -164,6 +239,7 @@ exports.getProductsByBrandAndCategory = async (req, res) => {
             data: products
         });
     } catch (error) {
+        console.error('Get by brand/category error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching products',
@@ -190,6 +266,7 @@ exports.getProductsByBrand = async (req, res) => {
             data: products
         });
     } catch (error) {
+        console.error('Get by brand error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching products',
