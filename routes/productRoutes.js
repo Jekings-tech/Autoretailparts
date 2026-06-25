@@ -24,17 +24,28 @@ const upload = multer({ storage: storage });
 
 // --- ROUTES ---
 
+// GET all products
 router.get('/', productController.getAllProducts);
 
-// 1. FIXED: Your frontend sends search as a query parameter (?search=...) 
-// and the controller expects req.query, so change this:
-router.get('/search', productController.searchProducts); 
+// GET products by brand (MUST be BEFORE /:id)
+router.get('/brand/:brandId', productController.getProductsByBrand);
 
-// 2. FIXED: Changed 'getProduct' to 'getProductById' to match your controller
-router.get('/:id', productController.getProductById); 
+// GET products by brand and category (MUST be BEFORE /:id)
+router.get('/brand/:brandId/category/:categoryId', productController.getProductsByBrandAndCategory);
 
+// GET search products
+router.get('/search', productController.searchProducts);
+
+// GET single product by ID (MUST be LAST)
+router.get('/:id', productController.getProductById);
+
+// POST create product
 router.post('/', upload.array('images', 10), productController.createProduct);
+
+// PUT update product
 router.put('/:id', upload.array('images', 10), productController.updateProduct);
+
+// DELETE product
 router.delete('/:id', productController.deleteProduct);
 
 module.exports = router;
