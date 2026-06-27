@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fetch = require('node-fetch'); // 👈 ADD THIS - npm install node-fetch
 
 const app = express();
 
@@ -44,8 +45,24 @@ app.post('/api/auth/login', (req, res) => {
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/brands', brandRoutes);
+
+// ===== KEEP ALIVE FUNCTION =====
+// Prevents Render from sleeping the free tier
+const keepAlive = () => {
+  console.log('🔄 Keep-alive monitor started - pinging every 10 minutes');
+  setInterval(async () => {
+    try {
+      const response = await fetch('https://autoretail-backend.onrender.com/api/categories');
+      console.log(`✅ Keep-alive ping successful: ${response.status}`);
+    } catch (error) {
+      console.log(`⚠️ Keep-alive ping failed: ${error.message}`);
+    }
+  }, 10 * 60 * 1000); // Ping every 10 minutes
+};
+
 // Start Server
-const PORT = process.env.PORT || 5000; // 👈 Better for Render/Heroku
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  keepAlive(); // 👈 Start the keep-alive
 });
