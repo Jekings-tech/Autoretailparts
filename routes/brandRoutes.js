@@ -2,40 +2,25 @@ const express = require('express');
 const router = express.Router();
 const Brand = require('../models/Brand');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// ✅ ENSURE UPLOADS DIRECTORY EXISTS
-const uploadDir = path.join(__dirname, '..', 'uploads', 'brands');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// ✅ CONFIGURE MULTER FOR FILE UPLOADS
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.random().toString(36).substring(2, 15);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
+// --- Cloudinary Configuration ---
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-    if (allowedTypes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error('Invalid file type. Only JPEG, PNG, GIF, WEBP, and SVG are allowed.'), false);
-    }
-};
-
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-    fileFilter: fileFilter
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'autoparts_business/brands',  // ✅ Brands folder inside your existing folder
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp']
+  }
 });
+
+const upload = multer({ storage: storage });
 
 // ============================
 // GET ALL BRANDS
@@ -65,7 +50,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // ============================
-// CREATE BRAND
+// CREATE BRAND (with Cloudinary upload)
 // ============================
 router.post('/', upload.single('logo'), async (req, res) => {
     try {
@@ -77,11 +62,12 @@ router.post('/', upload.single('logo'), async (req, res) => {
         
         const brandData = { name };
         
-        // ✅ If a file was uploaded, save the path
+        // ✅ Cloudinary returns the full URL in req.file.path
         if (req.file) {
-            brandData.logo = '/uploads/brands/' + req.file.filename;
+            brandData.logo = req.file.path;
+            console.log('✅ Brand image uploaded to Cloudinary:', brandData.logo);
         } else if (req.body.logo && req.body.logo.length <= 2) {
-            // If it's an emoji
+            // If emoji
             brandData.logo = req.body.logo;
         }
         
@@ -96,7 +82,7 @@ router.post('/', upload.single('logo'), async (req, res) => {
 });
 
 // ============================
-// UPDATE BRAND
+// UPDATE BRAND (with Cloudinary upload)
 // ============================
 router.put('/:id', upload.single('logo'), async (req, res) => {
     try {
@@ -106,32 +92,31 @@ router.put('/:id', upload.single('logo'), async (req, res) => {
         }
         
         const { name } = req.body;
+        if (name) brand.name = name;
         
-        if (name) {
-            brand.name = name;
-        }
-        
-        // ✅ If a new file was uploaded
         if (req.file) {
-            // Delete old image if it exists and is a local file
-            if (brand.logo && brand.logo.startsWith('/uploads/')) {
-                const oldPath = path.join(__dirname, '..', brand.logo);
-                if (fs.existsSync(oldPath)) {
-                    try {
-                        fs.unlinkSync(oldPath);
-                        console.log('✅ Deleted old brand image:', oldPath);
-                    } catch (err) {
-                        console.log('⚠️ Could not delete old image:', err.message);
-                    }
+            // Delete old image from Cloudinary
+            if (brand.logo && brand.logo.includes('cloudinary.com')) {
+                try {
+                    // Extract public ID from Cloudinary URL
+                    // URL format: https://res.cloudinary.com/CLOUD/image/upload/v123/autoparts_business/brands/filename.jpg
+                    const urlParts = brand.logo.split('/');
+                    const filenameWithExt = urlParts[urlParts.length - 1];
+                    const filename = filenameWithExt.split('.')[0];
+                    const publicId = 'autoparts_business/brands/' + filename;
+                    
+                    await cloudinary.uploader.destroy(publicId);
+                    console.log('✅ Deleted old Cloudinary image:', publicId);
+                } catch (err) {
+                    console.log('⚠️ Could not delete old image:', err.message);
                 }
             }
-            brand.logo = '/uploads/brands/' + req.file.filename;
+            brand.logo = req.file.path;
+            console.log('✅ Brand updated with new Cloudinary image:', brand.logo);
         } else if (req.body.logo !== undefined) {
-            // If logo field is sent (could be emoji or empty)
             if (req.body.logo && req.body.logo.length <= 2) {
-                brand.logo = req.body.logo; // Emoji
+                brand.logo = req.body.logo;
             } else if (!req.body.logo) {
-                // If logo is empty string, remove the logo
                 brand.logo = null;
             }
         }
@@ -154,16 +139,18 @@ router.delete('/:id', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Brand not found' });
         }
         
-        // ✅ Delete the brand image if it exists
-        if (brand.logo && brand.logo.startsWith('/uploads/')) {
-            const imagePath = path.join(__dirname, '..', brand.logo);
-            if (fs.existsSync(imagePath)) {
-                try {
-                    fs.unlinkSync(imagePath);
-                    console.log('✅ Deleted brand image:', imagePath);
-                } catch (err) {
-                    console.log('⚠️ Could not delete image:', err.message);
-                }
+        // Delete from Cloudinary
+        if (brand.logo && brand.logo.includes('cloudinary.com')) {
+            try {
+                const urlParts = brand.logo.split('/');
+                const filenameWithExt = urlParts[urlParts.length - 1];
+                const filename = filenameWithExt.split('.')[0];
+                const publicId = 'autoparts_business/brands/' + filename;
+                
+                await cloudinary.uploader.destroy(publicId);
+                console.log('✅ Deleted from Cloudinary:', publicId);
+            } catch (err) {
+                console.log('⚠️ Could not delete from Cloudinary:', err.message);
             }
         }
         
